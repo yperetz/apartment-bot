@@ -1,10 +1,15 @@
 import os
+import pickle
+
 import telebot
 from threading import Thread
-import asyncio
 from dotenv import load_dotenv
 from secrets import token_urlsafe
 import schedule
+import time
+from Yad2Scraper import get_aps
+
+from telebot.types import MessageEntity
 
 users = []
 tokens = []
@@ -14,6 +19,8 @@ if load_dotenv():
 else:
     exit(1)
 bot = telebot.TeleBot(API_KEY)
+AP_URL = 'https://www.yad2.co.il/item/'
+IMG_NOT_FOUND = 'https://bitsofco.de/content/images/2018/12/broken-1.png'
 
 
 @bot.message_handler(commands=['start'])
@@ -24,11 +31,45 @@ def send_welcome(message):
         users.append({'id': message.chat.id, "token": token})
         tokens.append(token)
         # bot.reply_to(message, token)
-        bot.reply_to(message, f"""\
-    The Token is {token, users}\
-""")
+    bot.reply_to(message, f"The Token is {token, users}")
 
-        # Handle all other messages with content_type 'text' (content_types defaults to ['text'])
+    # Handle all other messages with content_type 'text' (content_types defaults to ['text'])
+
+
+@bot.message_handler(commands=['apartments'])
+def get_apartments(message):
+    msg = bot.reply_to(message, "Started looking for apartments")
+    try:
+        aps = get_aps()
+    except Exception as e:
+        bot.reply_to(msg, "Failed")
+        print(e)
+        return
+    pickle.dump(aps, open("aps.p", "wb"))
+    for city in aps:
+        for nhood in city["nhoods"]:
+            for ap in nhood["apartments"]:
+                if ap['img_url'] is not None:
+                    imgurl = ap['img_url']
+                else:
+                    imgurl = IMG_NOT_FOUND
+                cap = ap["name"] + f' - {nhood["name"]}\n' + ap[
+                    "subtitle"] + '\n' + ap[
+                          "rooms"] + " " + "חדרים" + "   |" + "   קומה " + ap[
+                          "floor"] + "    |    " + ap['area'] + "  מ\"ר"
+                try:
+                    bot.send_photo(chat_id=message.chat.id, photo=imgurl,
+                                   caption=cap, caption_entities=[
+                            MessageEntity(length=len(ap["name"]), offset=0,
+                                          type='text_link',
+                                          url=AP_URL + ap['id'])])
+                except:
+                    bot.send_photo(chat_id=message.chat.id, photo=IMG_NOT_FOUND,
+                                   caption=cap, caption_entities=[
+                            MessageEntity(length=len(ap["name"]), offset=0,
+                                          type='text_link',
+                                          url=AP_URL + ap['id'])])
+                time.sleep(2)
 
 
 @bot.message_handler(func=lambda message: True)
@@ -50,14 +91,14 @@ def echoAll():
 def schedule_checker():
     while True:
         schedule.run_pending()
-        asyncio.sleep(1)
+        time.sleep(1)
 
 
 def start_polling():
-    asyncio.run(bot.polling())
+    bot.polling()
 
 
-schedule.every(15).seconds.do(echoAll)
+schedule.every().day.at('08:00').do(echoAll)
 Thread(target=start_polling).start()
-asyncio.sleep(2)
+time.sleep(2)
 Thread(target=schedule_checker).start()

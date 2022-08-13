@@ -5,34 +5,7 @@ import pickle
 import re
 import requests
 
-# cookies = {
-#     '__uzma': 'ed4bb612-a4ba-4542-82ad-fc38a0d58292',
-#     '__uzmb': '1660263172',
-#     '__uzme': '2175',
-#     '__uzmc': '680841988958',
-#     '__uzmd': '1660263206',
-#     '__uzmf': '7f6000e24c32a7-8bda-40a7-a2d4-359ab0d0187c166026317248134452-82c8360fd311031c19',
-#     'abTestKey': '45',
-#     'canary': 'never',
-#     '__uzmhj': 'd8d6c4f1e2eb9503ccbf213e32c84039d04f89e5cdb8bf9a25638fd84fcdf711',
-#     '__ssds': '3',
-#     'server_env': 'production',
-#     '__ssuzjsr3': 'a9be0cd8e',
-#     '__uzmaj3': '812e8227-7889-4632-af90-75b7424a867a',
-#     '__uzmbj3': '1660263195',
-#     '__uzmcj3': '863611081734',
-#     '__uzmdj3': '1660263195',
-#     '_ga_GQ385NHRG1': 'GS1.1.1660263199.1.1.1660263199.0',
-#     '_ga': 'GA1.1.438239348.1660263199',
-#     'y2018-2-cohort': '64',
-#     'leadSaleRentFree': '99',
-#     'y2_cohort_2020': '33',
-#     'use_elastic_search': '1',
-#     'favorites_userid': 'ghh405076372',
-#     'bc.visitor_token': '6963648583322460160',
-# }
-
-headers = {
+headers_places = {
     'User-Agent': 'Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:102.0) Gecko/20100101 Firefox/102.0',
     'Accept': 'application/json, text/plain, */*',
     'Accept-Language': 'en-US,en;q=0.5',
@@ -54,7 +27,25 @@ headers = {
     'Sec-Fetch-Site': 'same-origin',
 }
 
+headers_aps = {
+    'User-Agent': 'Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:102.0) Gecko/20100101 Firefox/102.0',
+    'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
+    'Accept-Language': 'en-US,en;q=0.5',
+    # 'Accept-Encoding': 'gzip, deflate, br',
+    'DNT': '1',
+    'Connection': 'keep-alive',
+    # Requests sorts cookies= alphabetically
+    # 'Cookie': '__uzma=ed4bb612-a4ba-4542-82ad-fc38a0d58292; __uzmb=1660263172; __uzme=2175; __uzmc=433928552165; __uzmd=1660265668; __uzmf=7f6000e24c32a7-8bda-40a7-a2d4-359ab0d0187c16602631724812496452-e494c31c9ed5ed6a85; abTestKey=45; canary=never; __uzmhj=d8d6c4f1e2eb9503ccbf213e32c84039d04f89e5cdb8bf9a25638fd84fcdf711; __ssds=3; server_env=production; __ssuzjsr3=a9be0cd8e; __uzmaj3=812e8227-7889-4632-af90-75b7424a867a; __uzmbj3=1660263195; __uzmcj3=909271399421; __uzmdj3=1660265668; _ga_GQ385NHRG1=GS1.1.1660265649.2.1.1660265666.0; _ga=GA1.1.438239348.1660263199; y2018-2-cohort=64; leadSaleRentFree=99; y2_cohort_2020=33; use_elastic_search=1; bc.visitor_token=6963648583322460160; recommendations-searched-2=2; recommendations-home-category={"categoryId":2,"subCategoryId":2}; _ga_10CMRFNKW7=GS1.1.1660265651.1.1.1660265666.0; favorites_userid=ghh405076372',
+    'Upgrade-Insecure-Requests': '1',
+    'Sec-Fetch-Dest': 'document',
+    'Sec-Fetch-Mode': 'navigate',
+    'Sec-Fetch-Site': 'none',
+    'Sec-Fetch-User': '?1',
+}
+
 URL_AUTOCOMPLETE = "https://www.yad2.co.il/api/search/autocomplete/realestate?text="
+ROOMS_MIN = '1.5'
+ROOMS_MAX = '2.5'
 H_GID = 3
 C_GID = 4
 SLEEP = 2
@@ -112,64 +103,63 @@ def get_places(headers):
     return found_places
 
 
-found_places = get_places(headers)
-# pickle.dump(found_places, open("found_places.p", "wb"))
-# found_places = pickle.load(open("found_places.p", "rb"))
+def get_apt_info(ft, ap_ids):
+    item = ft.find('div', id=re.compile("^feed_item_\\d+$"))
+    if item['item-id'] in ap_ids:
+        return None
+    ap_ids.append(item['item-id'])
+    name_tag = ft.find('span', id=re.compile("^feed_item_\\d+_title$"))
+    name = name_tag.text.strip()
+    subttitle = name_tag.parent.find('span',
+                                     class_='subtitle').text.strip()
+    rooms = ft.find('span', id=re.compile("^data_rooms_\d+$")).text.strip()
+    floor = ft.find('span', id=re.compile("^data_floor_\d+$")).text.strip()
+    area = ft.find('span', id=re.compile("^data_SquareMeter_\d+$")).text.strip()
+    img_url = ft.find('img', class_='feedImage')['src'].strip()
+    img_re = re.search(r"(.+\.(jpe?g|png)).*", img_url)
+    img_url = None
+    if img_re is not None:
+        if img_re.group(1) is not None:
+            img_url = img_re.group(1)
 
-headers = {
-    'User-Agent': 'Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:102.0) Gecko/20100101 Firefox/102.0',
-    'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
-    'Accept-Language': 'en-US,en;q=0.5',
-    # 'Accept-Encoding': 'gzip, deflate, br',
-    'DNT': '1',
-    'Connection': 'keep-alive',
-    # Requests sorts cookies= alphabetically
-    # 'Cookie': '__uzma=ed4bb612-a4ba-4542-82ad-fc38a0d58292; __uzmb=1660263172; __uzme=2175; __uzmc=433928552165; __uzmd=1660265668; __uzmf=7f6000e24c32a7-8bda-40a7-a2d4-359ab0d0187c16602631724812496452-e494c31c9ed5ed6a85; abTestKey=45; canary=never; __uzmhj=d8d6c4f1e2eb9503ccbf213e32c84039d04f89e5cdb8bf9a25638fd84fcdf711; __ssds=3; server_env=production; __ssuzjsr3=a9be0cd8e; __uzmaj3=812e8227-7889-4632-af90-75b7424a867a; __uzmbj3=1660263195; __uzmcj3=909271399421; __uzmdj3=1660265668; _ga_GQ385NHRG1=GS1.1.1660265649.2.1.1660265666.0; _ga=GA1.1.438239348.1660263199; y2018-2-cohort=64; leadSaleRentFree=99; y2_cohort_2020=33; use_elastic_search=1; bc.visitor_token=6963648583322460160; recommendations-searched-2=2; recommendations-home-category={"categoryId":2,"subCategoryId":2}; _ga_10CMRFNKW7=GS1.1.1660265651.1.1.1660265666.0; favorites_userid=ghh405076372',
-    'Upgrade-Insecure-Requests': '1',
-    'Sec-Fetch-Dest': 'document',
-    'Sec-Fetch-Mode': 'navigate',
-    'Sec-Fetch-Site': 'none',
-    'Sec-Fetch-User': '?1',
-}
+    return {'name': name, 'id': item['item-id'], 'subtitle': subttitle,
+            'rooms': rooms, 'floor': floor, 'area': area, 'img_url': img_url}
 
-soup = pickle.load(open("soup.p", "rb"))
 
-ap_ids = []
-all_aps = []
+def get_all_apt_info(found_places, headers):
+    rooms = ROOMS_MIN + '-' + ROOMS_MAX
+    ap_ids = []
+    all_aps = []
+    for city in found_places:
+        city_item = {'name': city['text'], 'id': city['value']['city'],
+                     'nhoods': []}
 
-for city in found_places:
-    city_item = {'name': city['text'], 'id': city['value']['city'],
-                 'nhoods': []}
+        for nhood in city["hoods"]:
+            # todo value
+            nhood_item = {'name': nhood['text'],
+                          'id': nhood['value']['neighborhood'],
+                          'apartments': []}
+            r = requests.get(
+                'https://www.yad2.co.il/realestate/rent',
+                params={'topArea': nhood['value']['topArea'],
+                        'area': nhood['value']['area'],
+                        'city': nhood['value']['city'],
+                        'neighborhood': nhood['value']['neighborhood'],
+                        'rooms': rooms, }, headers=headers)
+            sleep()
+            soup = BeautifulSoup(r.text, 'html.parser')
+            feedtables = soup.findAll('div', class_='feeditem table')
 
-    for nhood in city["hoods"]:
-        # todo value
-        nhood_item = {'name': nhood['text'],
-                      'id': nhood['value']['neighborhood'],
-                      'apartments': []}
-        r = requests.get(
-            'https://www.yad2.co.il/realestate/rent',
-            params={'topArea': nhood['value']['topArea'],
-                    'area': nhood['value']['area'],
-                    'city': nhood['value']['city'],
-                    'neighborhood': nhood['value']['neighborhood'], },
-            headers=headers)
-        sleep()
-        soup = BeautifulSoup(r.text, 'html.parser')
-        feedtables = soup.findAll('div', class_='feeditem table')
-        all_items = []
+            for ft in feedtables:
+                aps = get_apt_info(ft, ap_ids)
+                if aps is None:
+                    continue
+                nhood_item['apartments'].append(aps)
+            city_item['nhoods'].append(nhood_item)
+        all_aps.append(city_item)
+    return all_aps
 
-        for ft in feedtables:
-            item_dict = {}
-            item = ft.find('div', id=re.compile("^feed_item_\\d+$"))
-            if item['item-id'] in ap_ids:
-                continue
-            ap_ids.append(item['item-id'])
-            name = ft.find('span',
-                           id=re.compile("^feed_item_\\d+_title$")).text.strip()
-            nhood_item['apartments'].append(
-                {'name': name, 'id': item['item-id']})
-        city_item['nhoods'].append(nhood_item)
-    all_aps.append(city_item)
 
-# pickle.dump(all_aps, open("all_aps.p", "wb"))
-# found_places = pickle.load(open("found_places.p", "rb"))
+def get_aps():
+    places = get_places(headers_places)
+    return get_all_apt_info(places, headers_aps)
